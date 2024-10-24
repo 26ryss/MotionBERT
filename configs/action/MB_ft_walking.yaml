@@ -19,7 +19,7 @@ depth: 5
 dim_rep: 512
 num_heads: 8
 att_fuse: True
-num_joints: 26
+num_joints: 17
 hidden_dim: 2048
 dropout_ratio: 0.1
 

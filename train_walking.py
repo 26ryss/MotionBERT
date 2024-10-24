@@ -20,7 +20,7 @@ from lib.utils.tools import *
 from lib.utils.learning import *
 from lib.model.loss import *
 from lib.data.dataset_action import NTURGBD
-from lib.model.model_action import ActionNet
+from lib.model.model_walking import WalkingNet
 
 random.seed(0)
 np.random.seed(0)
@@ -91,7 +91,7 @@ def train_with_config(args, opts):
             model_backbone = load_pretrained_weights(model_backbone, checkpoint)
     if args.partial_train:
         model_backbone = partial_train_layers(model_backbone, args.partial_train)
-    model = ActionNet(backbone=model_backbone, dim_rep=args.dim_rep, num_classes=args.action_classes, dropout_ratio=args.dropout_ratio, version=args.model_version, hidden_dim=args.hidden_dim, num_joints=args.num_joints)
+    model = WalkingNet(backbone=model_backbone, dim_rep=args.dim_rep, num_classes=args.action_classes, dropout_ratio=args.dropout_ratio, version=args.model_version, hidden_dim=args.hidden_dim, num_joints=args.num_joints)
     criterion = torch.nn.CrossEntropyLoss()
     if torch.cuda.is_available():
         model = nn.DataParallel(model)
