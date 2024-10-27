@@ -174,5 +174,10 @@ def get_json_paths_and_caption(data_path):
                     json_paths.append(json_id2path[json_id])
 
     assert len(json_paths) == len(captions)
-    # breakpoint()
+
     return json_paths, captions
+
+def save_vocab(vocab, vocab_path):
+    with open(vocab_path, 'wb') as f:
+        pickle.dump(vocab, f)
+    return

@@ -44,23 +44,26 @@ def parse_args():
 def train_rnn(args, opts):
     print("INFO: Training RNN")
     json_paths, captions = get_json_paths_and_caption('data/walking')
+    train_json_paths, train_captions, test_json_paths, test_captions = split_dataset_labels_kcv(json_paths, captions, 8, 1)
     print("INFO: Loaded json paths and captions, total of {} samples".format(len(json_paths)))
     # vocab
-    vocab = build_vocab(captions, threshold=2)
+    vocab = build_vocab(captions, threshold=3)
     vocab_size = len(vocab)
     print("INFO: Loaded vocab, total of {} words".format(vocab_size))
     # dataset
-    dataset = AlphaPoseAnnotDataset(json_paths, captions, vocab, train=True, n_frames=243, random_move=True, scale_range=[1,1])
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, collate_fn=custom_collate_fn)
+    train_dataset = AlphaPoseAnnotDataset(train_json_paths, train_captions, vocab, train=True, n_frames=243, random_move=True, scale_range=[1,1])
+    test_dataset = AlphaPoseAnnotDataset(test_json_paths, test_captions, vocab, train=False, n_frames=243, random_move=True, scale_range=[1,1])
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=custom_collate_fn)
+    test_dataloader = DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False, collate_fn=custom_collate_fn)
     print("INFO: Loaded dataset, loading model")
     # model, decoder
     model_backbone = load_backbone(args)
     model = ActionNet(backbone=model_backbone, dim_rep=args.dim_rep, dropout_ratio=args.dropout_ratio, hidden_dim=args.hidden_dim, num_joints=args.num_joints)
-    decoder = DecoderRNN(embed_size=args.hidden_dim, hidden_size=2048, vocab_size=vocab_size, num_layers=5)
+    decoder = DecoderRNN(embed_size=args.hidden_dim, hidden_size=512, vocab_size=vocab_size, num_layers=1)
 
     criterion = nn.CrossEntropyLoss()
-    params = model.parameters()
-    optimizer = torch.optim.Adam(params, lr=args.lr_head)
+    params = list(model.parameters()) + list(decoder.parameters())
+    optimizer = torch.optim.Adam(params, lr=args.lr_head, weight_decay=args.weight_decay)
 
     if torch.cuda.is_available():
         model = nn.DataParallel(model)
@@ -68,9 +71,17 @@ def train_rnn(args, opts):
         decoder = decoder.cuda()
         criterion = criterion.cuda()
 
+    best_test_loss = 1000
+
+    train_loss, test_loss = [], []
+
     for epoch in range(args.epochs):
         print("Epoch: ", epoch)
-        for i, (motion, captions, lengths) in enumerate(dataloader):
+        model.train()
+        decoder.train()
+        epoch_train_loss = 0
+        epoch_test_loss = 0
+        for i, (motion, captions, lengths) in enumerate(train_dataloader):
             targets = pack_padded_sequence(captions, lengths, batch_first=True)[0]
             if torch.cuda.is_available():
                 motion = motion.cuda()
@@ -83,26 +94,45 @@ def train_rnn(args, opts):
             loss.backward()
             optimizer.step()
             if i % 10 == 0:
-                print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch, args.epochs, i, len(dataloader), loss.item()))
+                print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch, args.epochs, i, len(train_dataloader), loss.item()))
+            epoch_train_loss += loss.item()
+        train_loss.append(epoch_train_loss / len(train_dataloader))
+
+        model.eval()
+        decoder.eval()
+        for i, (motion, captions, lengths) in enumerate(test_dataloader):
+            targets = pack_padded_sequence(captions, lengths, batch_first=True)[0]
+            if torch.cuda.is_available():
+                motion = motion.cuda()
+                captions = captions.cuda()
+                targets = targets.cuda()
+            features = model(motion)
+            outputs = decoder(features, captions, lengths)
+            loss = criterion(outputs, targets)
+            epoch_test_loss += loss.item()
+        test_loss.append(epoch_test_loss / len(test_dataloader))
+
+        print(f"After epoch {epoch}, losses are train: {train_loss[-1]}, test: {test_loss[-1]}")
+
+        if test_loss[-1] < best_test_loss:
+            best_test_loss = test_loss[-1]
+            print("INFO: Saving best model")
+            torch.save(model.state_dict(), os.path.join(opts.checkpoint, 'best_model.pth'))
+            torch.save(decoder.state_dict(), os.path.join(opts.checkpoint, 'best_decoder.pth'))
+
+    display_train_test_results('vis', 'model_rnn', train_loss, train_loss, test_loss, test_loss)
+
     print('Finished training')
-    # print("Testing with a sample")
-    # test_json = 'data/walking/model/json/7.json'
-    # test_data = read_input(test_json, vid_size=None, scale_range=[1,1], focus=None)
-    # test_data = test_data.astype(np.float32)
-    # resample_id = resample(ori_len=test_data.shape[0], target_len=243, randomness=False)
-    # test_data = test_data[resample_id]
-    # fake = np.zeros(test_data.shape)
-    # test_data = np.array([[test_data, fake]]).astype(np.float32)
-    # sampled_ids = decoder.sample(model(torch.tensor(test_data).cuda()))
-    # sampled_ids = sampled_ids[0].cpu().numpy()
-    # sampled_caption = []
-    # for word_id in sampled_ids:
-    #     word = vocab.idx2word[word_id]
-    #     sampled_caption.append(word)
-    #     if word == '<end>':
-    #         break
-    # sentence = ' '.join(sampled_caption)
-    # print(sentence)
+
+    print("INFO: Saving model")
+    # save vocab, model, decoder
+    if not os.path.exists(opts.checkpoint):
+        os.makedirs(opts.checkpoint, exist_ok=True)
+    save_vocab(vocab, os.path.join(opts.checkpoint, 'vocab.pkl'))
+    torch.save(model.state_dict(), os.path.join(opts.checkpoint, 'last_epoch_model.pth'))
+    torch.save(decoder.state_dict(), os.path.join(opts.checkpoint, 'last_epoch_decoder.pth'))
+
+    return
 
 if __name__ == "__main__":
     opts = parse_args()

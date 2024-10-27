@@ -3,12 +3,14 @@ finetune: True
 partial_train: null
 
 # Traning
-epochs: 20
+epochs: 5
 batch_size: 16
 lr_backbone: 0.0001
-lr_head: 0.00003
+lr_head: 0.0003
 weight_decay: 0.03
 lr_decay: 0.99
+
+test_batch_size: 2
 
 # Model
 maxlen: 243
