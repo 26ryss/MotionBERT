@@ -14,33 +14,6 @@ from torch.utils.data import Dataset, DataLoader
 from lib.utils.utils_data import crop_scale, resample
 
 
-def build_vocab(captions, threshold):
-    """Build a simple vocabulary wrapper."""
-    counter = {}
-    for i, caption in enumerate(captions):
-        tokens = caption.split(' ')
-        if len(tokens) == 0:
-            print('WARNING: Found empty caption')
-            continue
-        for token in tokens:
-            if token not in counter:
-                counter[token] = 0
-            counter[token] += 1
-
-    words = [word for word in counter if counter[word] >= threshold]
-
-    vocab = Vocabulary()
-    vocab.add_word('<pad>')
-    vocab.add_word('<start>')
-    vocab.add_word('<end>')
-    vocab.add_word('<unk>')
-
-    for i, word in enumerate(words):
-        vocab.add_word(word)
-
-    return vocab
-
-
 def halpe2h36m(x):
     '''
         Input: x (T x V x C)
@@ -114,46 +87,10 @@ def read_input(json_path, vid_size, scale_range, focus):
         motion = crop_scale(kpts_all, scale_range)
     return motion.astype(np.float32)
 
-
-def custom_collate_fn(data):
-    data.sort(key=lambda x: len(x[1]), reverse=True)
-    motion, captions = zip(*data)
-    motion = torch.stack(motion, 0)
-    lengths = [len(cap) for cap in captions]
-    targets = torch.zeros(len(captions), max(lengths)).long()
-    for i, cap in enumerate(captions):
-        end = lengths[i]
-        targets[i, :end] = cap[:end]
-    return motion, targets, lengths
-
-
-class Vocabulary(object):
-    """Simple vocabulary wrapper."""
-    def __init__(self):
-        self.word2idx = {}
-        self.idx2word = {}
-        self.idx = 0
-
-    def add_word(self, word):
-        if not word in self.word2idx:
-            self.word2idx[word] = self.idx
-            self.idx2word[self.idx] = word
-            self.idx += 1
-
-    def __call__(self, word):
-        if not word in self.word2idx:
-            return self.word2idx['<unk>']
-        return self.word2idx[word]
-
-    def __len__(self):
-        return len(self.word2idx)
-
-
 class AlphaPoseAnnotDataset(Dataset):
-    def __init__(self, json_paths, captions, vocab, train=True, n_frames=243, random_move=True, scale_range=[1,1]):
+    def __init__(self, json_paths, captions, train=True, n_frames=243, random_move=True, scale_range=[1,1]):
         self.json_paths = json_paths
         self.captions = captions
-        self.vocab = vocab
         self.train = train
         self.n_frames = n_frames
         self.random_move = random_move
@@ -184,11 +121,6 @@ class AlphaPoseAnnotDataset(Dataset):
         """
         Returns a sample of data
         self.X[index]: (2, n_frames, 17, 3)
-        self.y[index]: label (0 or 1)
+        self.caption[index]: caption
         """
-        caption = self.captions[index]
-        caption = caption.split(' ')
-        caption = ['<start>'] + caption + ['<end>']
-        caption = [self.vocab(word) for word in caption]
-
-        return self.X[index], torch.tensor(caption)
+        return self.X[index], self.captions[index]
