@@ -67,7 +67,7 @@ class ActionNet(nn.Module):
         return out
 
 class DecoderRNN(nn.Module):
-    def __init__(self, embed_size, hidden_size, vocab_size, num_layers, max_seq_length=20):
+    def __init__(self, embed_size, hidden_size, vocab_size, num_layers, max_seq_length=25):
         super(DecoderRNN, self).__init__()
         self.embed = nn.Embedding(vocab_size, embed_size)
         self.lstm = nn.LSTM(embed_size, hidden_size, num_layers, batch_first=True)
@@ -94,3 +94,20 @@ class DecoderRNN(nn.Module):
             inputs = inputs.unsqueeze(1)                         # inputs: (batch_size, 1, embed_size)
         sampled_ids = torch.stack(sampled_ids, 1)                # sampled_ids: (batch_size, max_seq_length)
         return sampled_ids
+
+class ActionEncoderDecoderRNN(nn.Module):
+    def __init__(self, backbone, dim_rep=512, dropout_ratio=0., hidden_dim=2048, num_joints=17, vocab_size=60, embed_size=512, num_layers=1):
+        super(ActionEncoderDecoderRNN, self).__init__()
+        self.backbone = backbone
+        self.encoder = ActionNet(backbone=backbone, dim_rep=dim_rep, dropout_ratio=dropout_ratio, hidden_dim=hidden_dim, num_joints=num_joints)
+        self.decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_dim, vocab_size=vocab_size, num_layers=num_layers)
+
+    def forward(self, motion, captions, lengths):
+        # breakpoint()
+        features = self.encoder(motion)
+        outputs = self.decoder(features, captions, lengths)
+        return outputs
+
+    def parameters(self):
+        # parameters
+        return list(self.encoder.parameters()) + list(self.decoder.parameters())
