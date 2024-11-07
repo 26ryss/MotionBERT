@@ -57,14 +57,20 @@ def train_transformer(args, opts):
     print("INFO: Loaded dataset, loading model")
     # model, decoder
     model_backbone = load_backbone(args)
-    model = EncoderDecoder(model_backbone, dim_rep=args.dim_rep, dropout_ratio=args.dropout_ratio, enc_hidden_dim=args.hidden_dim, num_joints=args.num_joints, vocab_size=len(tokenizer))
+    for param in model_backbone.parameters():
+        param.requires_grad = False
+
+    model = EncoderDecoder(model_backbone, dim_rep=args.dim_rep, dropout_ratio=args.dropout_ratio, enc_hidden_dim=args.hidden_dim, num_joints=args.num_joints, vocab_size=len(tokenizer), num_layers=args.dec_num_layers, num_heads=args.dec_num_heads)
     # print number of parameters
     print("INFO: Number of parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
+    # print trainable parameters
+    print("INFO: Number of trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
     loss_fn = nn.CrossEntropyLoss(reduction='none')
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scaler = torch.cuda.amp.GradScaler()
 
-    td = TokenDrop(0.5)
+    td = TokenDrop(0.05)
+    test_td = TokenDrop(0.0)
 
     if torch.cuda.is_available():
         model = nn.DataParallel(model)
@@ -106,6 +112,8 @@ def train_transformer(args, opts):
             if i % 10 == 0:
                 print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch, args.epochs, i, len(train_dataloader), loss.item()))
             epoch_train_loss += loss.item()
+        if epoch % 10 == 0:
+            torch.save(model.state_dict(), os.path.join(opts.checkpoint, 'epoch_{}.pth'.format(epoch)))
         train_loss.append(epoch_train_loss / len(train_dataloader))
 
         model.eval()
@@ -117,7 +125,7 @@ def train_transformer(args, opts):
                 bs = token_ids.shape[0]
 
                 target_ids = torch.cat((token_ids[:,1:], torch.zeros(bs, 1).long()), dim=1)
-                tokens_in = td(token_ids)
+                tokens_in = test_td(token_ids)
 
                 if torch.cuda.is_available():
                     motion = motion.cuda()

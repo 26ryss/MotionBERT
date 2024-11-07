@@ -40,12 +40,12 @@ args = get_config(opts.config)
 model_backbone = load_backbone(args)
 tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
 
-model = EncoderDecoder(model_backbone, dim_rep=args.dim_rep, dropout_ratio=args.dropout_ratio, enc_hidden_dim=args.hidden_dim, num_joints=args.num_joints, vocab_size=len(tokenizer))
+model = EncoderDecoder(model_backbone, dim_rep=args.dim_rep, dropout_ratio=args.dropout_ratio, enc_hidden_dim=args.hidden_dim, num_joints=args.num_joints, vocab_size=len(tokenizer), num_layers=args.dec_num_layers, num_heads=args.dec_num_heads)
 if torch.cuda.is_available():
     model = nn.DataParallel(model)
     model = model.cuda()
 
-state_dict = torch.load(os.path.join(opts.checkpoint, 'best_model.pth'))
+state_dict = torch.load(os.path.join(opts.checkpoint, 'epoch_130.pth'))
 model.load_state_dict(state_dict, strict=True)
 print("INFO: Loaded model")
 model.eval()

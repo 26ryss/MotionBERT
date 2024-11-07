@@ -120,6 +120,11 @@ def train_rnn(args, opts):
             torch.save(model.state_dict(), os.path.join(opts.checkpoint, 'best_model.pth'))
             torch.save(decoder.state_dict(), os.path.join(opts.checkpoint, 'best_decoder.pth'))
 
+        if epoch % 10 == 0:
+            print("INFO: Saving model")
+            torch.save(model.state_dict(), os.path.join(opts.checkpoint, 'epoch_{}.pth'.format(epoch)))
+            torch.save(decoder.state_dict(), os.path.join(opts.checkpoint, 'decoder_epoch_{}.pth'.format(epoch)))
+
     display_train_test_results('vis', 'model_rnn', train_loss, train_loss, test_loss, test_loss)
 
     print('Finished training')

@@ -3,10 +3,10 @@ finetune: True
 partial_train: null
 
 # Traning
-epochs: 5
+epochs: 150
 batch_size: 16
-lr: 0.0001
-weight_decay: 0.03
+lr: 0.00003
+weight_decay: 0.01
 lr_decay: 0.99
 
 test_batch_size: 2
@@ -21,7 +21,11 @@ num_heads: 8
 att_fuse: True
 num_joints: 17
 hidden_dim: 2048
-dropout_ratio: 0.3
+dropout_ratio: 0.1
+
+# decoder
+dec_num_layers: 12
+dec_num_heads: 16
 
 # Data
 dataset: walking

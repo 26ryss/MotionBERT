@@ -47,7 +47,7 @@ if torch.cuda.is_available():
     model = model.cuda()
     decoder = decoder.cuda()
 
-model.load_state_dict(torch.load(os.path.join(opts.checkpoint, 'best_model.pth'), map_location=lambda storage, loc: storage), strict=True)
+model.load_state_dict(torch.load(os.path.join(opts.checkpoint, 'epoch_20.pth'), map_location=lambda storage, loc: storage), strict=True)
 decoder.load_state_dict(torch.load(os.path.join(opts.checkpoint, 'best_decoder.pth'), map_location=lambda storage, loc: storage))
 
 model.eval()

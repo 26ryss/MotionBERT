@@ -166,6 +166,9 @@ def get_json_paths_and_caption(data_path):
         caption_path_list = glob.glob(os.path.join(cls_dir, 'annot', '*.txt'))
         for caption_path in caption_path_list:
             json_id_caption_id = os.path.splitext(os.path.basename(caption_path))[0]
+            # if caption_id != 6 continue
+            if json_id_caption_id.split('_')[1] != '6':
+                continue
             json_id = cls + '_' + json_id_caption_id.split('_')[0]
             if json_id in json_id2path:
                 with open(caption_path, 'r') as f:
