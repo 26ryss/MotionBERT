@@ -3,6 +3,7 @@ import os, sys
 import pickle
 import yaml
 from easydict import EasyDict as edict
+import re
 from typing import Any, IO
 import json
 import glob
@@ -133,3 +134,53 @@ def print_kcv_results(kcv_results):
         print(f"Train loss: {np.mean(kcv_results[i]['train_losses'][-5:]):.4f}")
         print(f"Test loss: {np.mean(kcv_results[i]['test_losses'][-5:]):.4f}")
         print()
+
+
+def clean_caption(caption):
+    caption = caption.lower()
+    caption = re.sub(r'[^\w\s]', '', caption)  # Remove special characters
+    caption = re.sub(r'\s+', ' ', caption).strip()  # Normalize whitespace
+    caption = re.sub(r'\d+', '', caption)  # Remove numbers
+    return caption
+
+
+def get_json_paths_and_caption(data_path):
+    """
+    Get the json paths and captions from data_path/model/ and data_path/normal/
+    """
+    classes = ['normal', 'model']
+    json_id2path = {} # normal_1: path
+    captions = []
+    json_paths = []
+
+    # collect all json paths
+    for cls in classes:
+        cls_dir = os.path.join(data_path, cls, 'json')
+        json_path_list = glob.glob(os.path.join(cls_dir, '*.json'))
+        for json_path in json_path_list:
+            json_id = os.path.splitext(os.path.basename(json_path))[0]
+            json_id2path[cls + '_' + json_id] = json_path
+
+    for cls in classes:
+        cls_dir = os.path.join(data_path, cls)
+        caption_path_list = glob.glob(os.path.join(cls_dir, 'annot', '*.txt'))
+        for caption_path in caption_path_list:
+            json_id_caption_id = os.path.splitext(os.path.basename(caption_path))[0]
+            # if caption_id != 6 continue
+            if json_id_caption_id.split('_')[1] != '6':
+                continue
+            json_id = cls + '_' + json_id_caption_id.split('_')[0]
+            if json_id in json_id2path:
+                with open(caption_path, 'r') as f:
+                    caption = f.read().strip()
+                    captions.append(clean_caption(caption))
+                    json_paths.append(json_id2path[json_id])
+
+    assert len(json_paths) == len(captions)
+
+    return json_paths, captions
+
+def save_vocab(vocab, vocab_path):
+    with open(vocab_path, 'wb') as f:
+        pickle.dump(vocab, f)
+    return
